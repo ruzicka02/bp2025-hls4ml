@@ -105,5 +105,6 @@ ipx::check_integrity -quiet [ipx::current_core]
 ipx::archive_core hls4ml_IP/fastmachinelearning.org_hls4ml_krnl_rtl_1.0.zip [ipx::current_core]
 current_project project_1
 
+# kernel_xml_args are same as the automatically generated ones, but with one exception, here are unsigned int types instead of ap_uint<32> (otherwise pynq doesn't recognize it)
+package_xo  -force -xo_path xo_files/${project_name}_kernel.xo -kernel_name krnl_rtl -ip_directory hls4ml_IP -kernel_xml_args "{fifo_in:1:0:m_axi_gmem:0x8:0x10:void*} {fifo_out:1:1:m_axi_gmem:0x8:0x1c:void*} {length_r_in:0:2:s_axi_control:0x4:0x28:unsigned int} {length_r_out:0:3:s_axi_control:0x4:0x30:unsigned int}"
 
-package_xo  -force -xo_path xo_files/${project_name}_kernel.xo -kernel_name krnl_rtl -ip_directory hls4ml_IP

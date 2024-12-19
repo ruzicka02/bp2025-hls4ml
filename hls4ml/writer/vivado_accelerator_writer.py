@@ -40,54 +40,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                 if self.vivado_accelerator_config.get_interface() == 'axi_stream':
                     newline += f'typedef {inp_axi_t} T_in;\n'
                     newline += f'typedef {out_axi_t} T_out;\n'
-                    newline += (
-                        'typedef struct in_struct {\n'
-                        + indent
-                        + 'T_in data;\n'
-                        + indent
-                        + 'ap_uint<1> last;\n'
-                        + indent
-                        + 'in_struct(const T_in& data, const ap_uint<1>& last){this->data = data; this->last = last;};\n'
-                        + indent
-                        + 'in_struct(){this->data = 0; this->last = 0;};\n'
-                        + indent
-                        + 'friend std::ostream& operator<<(std::ostream& stream, const in_struct& in)\n'
-                        + indent
-                        + '{ return stream << "{ data: " << in.data << ", last: " << in.last << " }" << std::endl; }\n'
-                        + indent
-                        + 'operator float() const {return this->data;}\n'
-                        + indent
-                        + 'operator double() const {return this->data;}\n'
-                        + indent
-                        + 'in_struct(float data) {this->data = data; this->last = 0;}\n'
-                        + indent
-                        + 'in_struct(double data) {this->data = data; this->last = 0;}\n'
-                        + '} input_axi_t;\n'
-                    )
-                    newline += (
-                        'typedef struct out_struct {\n'
-                        + indent
-                        + 'T_out data;\n'
-                        + indent
-                        + 'ap_uint<1> last;\n'
-                        + indent
-                        + 'out_struct(const T_out& data, const ap_uint<1>& last){this->data = data; this->last = last;};\n'
-                        + indent
-                        + 'out_struct(){this->data = 0; this->last = 0;};\n'
-                        + indent
-                        + 'friend std::ostream& operator<<(std::ostream& stream, const out_struct& out)\n'
-                        + indent
-                        + '{ return stream << "{ data: " << out.data << ", last: " << out.last << " }" << std::endl; }\n'
-                        + indent
-                        + 'operator float() const {return this->data;}\n'
-                        + indent
-                        + 'operator double() const {return this->data;}\n'
-                        + indent
-                        + 'out_struct(float data) {this->data = data; this->last = 0;}\n'
-                        + indent
-                        + 'out_struct(double data) {this->data = data; this->last = 0;}\n'
-                        + '} output_axi_t;\n'
-                    )
+                    newline += 'typedef hls::axis<T_in, 0, 0, 0> input_axi_t;\n'
+                    newline += 'typedef hls::axis<T_out, 0, 0, 0> output_axi_t;\n'
                 else:
                     newline += f'typedef {inp_axi_t} input_axi_t;\n'
                     newline += f'typedef {out_axi_t} output_axi_t;\n'
@@ -158,8 +112,9 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline += indent + 'for(unsigned i = 0; i < N_IN; i++){\n'
                     if self.vivado_accelerator_config.get_interface() == 'axi_stream':
                         newline += indent + indent + '#pragma HLS PIPELINE\n'
-                        newline += indent + indent + 'in_local[i] = in[i].data; // Read input with cast\n'
-                        newline += indent + indent + 'is_last |= (in[i].last == 1)? true: false;\n'
+                        newline += indent + indent + 'input_axi_t in_tmp = in.read();\n'
+                        newline += indent + indent + 'in_local[i] = in_tmp.data; // Read input with cast\n'
+                        newline += indent + indent + 'is_last |= (in_tmp.last == 1)? true: false;\n'
                     else:
                         newline += indent + indent + '#pragma HLS UNROLL\n'
                         newline += indent + indent + 'in_local[i] = in[i]; // Read input with cast\n'
@@ -169,19 +124,12 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline += indent + 'for(unsigned i = 0; i < N_IN / {input_t}::size; ++i) {{\n'
                     # newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{input_t} ctype;\n'
-                    newline += indent + indent + '#pragma HLS DATA_PACK variable=ctype\n'
                     newline += indent + indent + 'for(unsigned j = 0; j < {input_t}::size; j++) {{\n'
                     # newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     if self.vivado_accelerator_config.get_interface() == 'axi_stream':
-                        newline += (
-                            indent
-                            + indent
-                            + indent
-                            + 'ctype[j] = typename {input_t}::value_type(in[i * {input_t}::size + j].data);\n'
-                        )
-                        newline += (
-                            indent + indent + indent + 'is_last |= (in[i * input_t::size + j].last == 1)? true : false;\n'
-                        )
+                        newline += indent + indent + indent + 'input_axi_t in_tmp = in.read();\n'
+                        newline += indent + indent + indent + 'ctype[j] = typename input_t::value_type(in_tmp.data);\n'
+                        newline += indent + indent + indent + 'is_last |= (in_tmp.last == 1)? true : false;\n'
                     else:
                         newline += (
                             indent
@@ -200,8 +148,12 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline += indent + 'for(unsigned i = 0; i < N_OUT; i++){\n'
                     if self.vivado_accelerator_config.get_interface() == 'axi_stream':
                         newline += indent + indent + '#pragma HLS PIPELINE\n'
-                        newline += indent + indent + 'out[i].data = out_local[i]; // Write output with cast\n'
-                        newline += indent + indent + 'out[i].last = (is_last && (i == N_OUT - 1))? true : false;\n'
+                        #newline += indent + indent + 'out[i].data = out_local[i]; // Write output with cast\n'
+                        #newline += indent + indent + 'out[i].last = (is_last && (i == N_OUT - 1))? true : false;\n'
+                        newline += indent + indent + 'output_axi_t out_tmp;\n'
+                        newline += indent + indent + 'out_tmp.data = out_local[i]; // Write output with cast\n'
+                        newline += indent + indent + 'out_tmp.last = (is_last && (i == N_OUT - 1))? true : false;\n'
+                        newline += indent + indent + 'out.write(out_tmp);\n'
                     else:
                         newline += indent + indent + '#pragma HLS UNROLL\n'
                         newline += indent + indent + 'out[i] = out_local[i]; // Write output with cast\n'
@@ -214,15 +166,10 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline += indent + indent + 'for(unsigned j = 0; j < {result_t}::size; j++) {{\n'
                     # newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     if self.vivado_accelerator_config.get_interface() == 'axi_stream':
-                        newline += (
-                            indent
-                            + indent
-                            + indent
-                            + 'bool last = (is_last && (i * {result_t}::size + j == N_OUT - 1)) ? true : false;\n'
-                        )
-                        newline += (
-                            indent + indent + indent + 'out[i * {result_t}::size + j] = output_axi_t(ctype[j], last);\n'
-                        )
+                        newline += indent + indent + indent + 'output_axi_t out_tmp;\n'
+                        newline += indent + indent + indent + 'out_tmp.data = ctype[j];\n'
+                        newline += indent + indent + indent + 'out_tmp.last = (is_last && (i * result_t::size + j == N_OUT - 1)) ? true : false;\n'
+                        newline += indent + indent + indent + 'out.write(out_tmp);\n'
                     else:
                         newline += indent + indent + indent + 'out[i * {result_t}::size + j] = output_axi_t(ctype[j]);\n'
                     newline += indent + indent + '}}\n'
@@ -247,7 +194,7 @@ class VivadoAcceleratorWriter(VivadoWriter):
         for line in f.readlines():
             if 'set_top' in line:
                 newline = line[:-1] + '_axi\n'  # remove the newline from the line end and append _axi for the new top
-                newline += f'add_files firmware/{model.config.get_project_name()}_axi.cpp -cflags "-std=c++0x"\n'
+                newline += f'add_files firmware/{model.config.get_project_name()}_axi.cpp -cflags "-std=c++14"\n'
             elif f'{model.config.get_project_name()}_cosim' in line:
                 newline = line.replace(
                     f'{model.config.get_project_name()}_cosim',
@@ -279,89 +226,18 @@ class VivadoAcceleratorWriter(VivadoWriter):
         fout.close()
 
     def write_wrapper_test(self, model):
+        ""
         ###################
         # write myproject_test_wrapper.cpp
         ###################
-        oldfile = f'{model.config.get_output_dir()}/{model.config.get_project_name()}_test.cpp'
-        newfile = f'{model.config.get_output_dir()}/{model.config.get_project_name()}_test_wrapper.cpp'
-
-        f = open(oldfile)
-        fout = open(newfile, 'w')
-
-        inp = model.get_input_variables()[0]
-        out = model.get_output_variables()[0]
-
-        for line in f.readlines():
-            if f'{model.config.get_project_name()}.h' in line:
-                newline = line.replace(f'{model.config.get_project_name()}.h', f'{model.config.get_project_name()}_axi.h')
-            elif inp.definition_cpp() in line:
-                newline = line.replace(
-                    inp.definition_cpp(), 'input_axi_t inputs[N_IN]'
-                )  # TODO instead of replacing strings, how about we use proper variables and their definition?
-            elif out.definition_cpp() in line:
-                newline = line.replace(out.definition_cpp(), 'output_axi_t outputs[N_OUT]')
-            elif 'unsigned short' in line:
-                newline = ''
-            elif f'{model.config.get_project_name()}(' in line:
-                indent_amount = line.split(model.config.get_project_name())[0]
-                newline = indent_amount + f'{model.config.get_project_name()}_axi(inputs,outputs);\n'
-            elif inp.size_cpp() in line or inp.name in line or inp.type.name in line:
-                newline = (
-                    line.replace(inp.size_cpp(), 'N_IN').replace(inp.name, 'inputs').replace(inp.type.name, 'input_axi_t')
-                )
-            elif out.size_cpp() in line or out.name in line or out.type.name in line:
-                newline = (
-                    line.replace(out.size_cpp(), 'N_OUT').replace(out.name, 'outputs').replace(out.type.name, 'output_axi_t')
-                )
-            else:
-                newline = line
-            if self.vivado_accelerator_config.get_interface() == 'axi_stream':
-                if 'nnet::fill_zero' in line:
-                    indent = line.split('n')[0]
-                    newline = indent + 'inputs[N_IN-1].last = 1;\n'
-                if 'copy_data' in line:
-                    newline = newline.replace('copy_data', 'copy_data_axi')
-            fout.write(newline)
-
-        f.close()
-        fout.close()
-        os.rename(newfile, oldfile)
+        # c-simulation for myproject_axi is simply removed
+        # I'm using only c-simulation for myproject (created by Vivado backend)
 
         ###################
         # write myproject_bridge_wrapper.cpp
         ###################
-        oldfile = f'{model.config.get_output_dir()}/{model.config.get_project_name()}_bridge.cpp'
-        newfile = f'{model.config.get_output_dir()}/{model.config.get_project_name()}_bridge_wrapper.cpp'
-
-        f = open(oldfile)
-        fout = open(newfile, 'w')
-
-        inp = model.get_input_variables()[0]
-        out = model.get_output_variables()[0]
-
-        for line in f.readlines():
-            if f'{model.config.get_project_name()}.h' in line:
-                newline = line.replace(f'{model.config.get_project_name()}.h', f'{model.config.get_project_name()}_axi.h')
-            elif inp.definition_cpp(name_suffix='_ap') in line:
-                newline = line.replace(inp.definition_cpp(name_suffix='_ap'), f'input_axi_t {inp.name}_ap[N_IN]')
-            elif out.definition_cpp(name_suffix='_ap') in line:
-                newline = line.replace(out.definition_cpp(name_suffix='_ap'), f'output_axi_t {out.name}_ap[N_OUT]')
-            elif f'{model.config.get_project_name()}(' in line:
-                indent_amount = line.split(model.config.get_project_name())[0]
-                newline = indent_amount + '{}_axi({}_ap,{}_ap);\n'.format(
-                    model.config.get_project_name(), inp.name, out.name
-                )
-            elif inp.size_cpp() in line or inp.name in line or inp.type.name in line:
-                newline = line.replace(inp.size_cpp(), 'N_IN').replace(inp.type.name, 'input_axi_t')
-            elif out.size_cpp() in line or out.name in line or out.type.name in line:
-                newline = line.replace(out.size_cpp(), 'N_OUT').replace(out.type.name, 'output_axi_t')
-            else:
-                newline = line
-            fout.write(newline)
-
-        f.close()
-        fout.close()
-        os.rename(newfile, oldfile)
+        # c-simulation using compile() and predict() simulates only myproject (not myproject_axi) too
+        # (so it is created by Vivado backend too, nothing needed here)
 
     def write_board_script(self, model):
         '''
@@ -377,6 +253,7 @@ class VivadoAcceleratorWriter(VivadoWriter):
             src_dir = os.path.join(filedir, self.vivado_accelerator_config.get_krnl_rtl_src_dir())
             dst_dir = os.path.abspath(model.config.get_output_dir()) + '/src'
             copy_tree(src_dir, dst_dir)
+            os.rename(f'{dst_dir}/myproject_kernel.v', f'{dst_dir}/{model.config.get_project_name()}_kernel.v')
 
         ###################
         # project.tcl
@@ -408,9 +285,7 @@ class VivadoAcceleratorWriter(VivadoWriter):
         )
 
     def write_new_tar(self, model):
-        tarfile = model.config.get_output_dir() + '.tar.gz'
-        if os.path.exists(tarfile):
-            os.remove(tarfile)
+        os.remove(model.config.get_output_dir() + '.tar.gz')
         super().write_tar(model)
 
     def write_hls(self, model):
@@ -430,3 +305,4 @@ class VivadoAcceleratorWriter(VivadoWriter):
         self.write_axi_wrapper(model)
         self.modify_build_script(model)
         self.write_new_tar(model)
+

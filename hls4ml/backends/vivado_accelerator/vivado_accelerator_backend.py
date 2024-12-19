@@ -67,14 +67,22 @@ class VivadoAcceleratorBackend(VivadoBackend):
                 the Alveo guide. Defaults to 'xilinx_u250_xdma_201830_2'.
         """
         curr_dir = os.getcwd()
+        project_name = model.config.get_project_name()
         abs_path_dir = os.path.abspath(model.config.get_output_dir())
         os.chdir(abs_path_dir)
+
+        #rename myproject_axi_0 module in krnl_rtl.sv
+        with open('src/krnl_rtl_int.sv', 'r') as file:
+            filedata = file.read()
+        filedata = filedata.replace('myproject_axi_0', project_name + '_axi_0')
+        with open('src/krnl_rtl_int.sv', 'w') as file:
+            file.write(filedata)
+
         os.makedirs('xo_files', exist_ok=True)
         try:
             os.system('vivado -mode batch -source design.tcl')
         except Exception:
             print("Something went wrong, check the Vivado logs")
-        project_name = model.config.get_project_name()
         ip_repo_path = abs_path_dir + '/' + project_name + '_prj' + '/solution1/impl/ip'
         os.makedirs('xclbin_files', exist_ok=True)
         os.chdir(abs_path_dir + '/xclbin_files')

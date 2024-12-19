@@ -152,8 +152,8 @@ if {$opt(reset)} {
     open_project ${project_name}_prj
 }
 set_top ${project_name}
-add_files firmware/${project_name}.cpp -cflags "-std=c++0x"
-add_files -tb ${project_name}_test.cpp -cflags "-std=c++0x"
+add_files firmware/${project_name}.cpp -cflags "-std=c++14"
+add_files -tb ${project_name}_test.cpp -cflags "-std=c++14"
 add_files -tb firmware/weights
 add_files -tb tb_data
 if {$opt(reset)} {
@@ -188,7 +188,7 @@ if {$opt(synth)} {
 if {$opt(cosim)} {
     puts "***** C/RTL SIMULATION *****"
     # TODO: This is a workaround (Xilinx defines __RTL_SIMULATION__ only for SystemC testbenches).
-    add_files -tb ${project_name}_test.cpp -cflags "-std=c++0x -DRTL_SIM"
+    add_files -tb ${project_name}_test.cpp -cflags "-std=c++14 -DRTL_SIM"
     set time_start [clock clicks -milliseconds]
 
     cosim_design -trace_level all -setup
