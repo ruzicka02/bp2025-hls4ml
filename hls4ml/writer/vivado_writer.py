@@ -366,16 +366,21 @@ class VivadoWriter(Writer):
                     newline += used_type.definition_cpp()
 
             elif '// hls-fpga-machine-learning insert weights-struct' in line:
-                newline = line + """
-// TODO: dynamic generation from the model
-struct layer_weights {
-    model_default_t w2[16];
-    model_default_t b2[4];
-    model_default_t w4[12];
-    model_default_t b4[3];
-};
+                # effective Python doesn't like repeated concatenation to long strings
+                newlines = [line.strip(), "struct layer_weights {"]
 
-#define LAYER_WEIGHTS_SIZE 35"""
+                lw_size = 0;
+                for layer in model.get_layers():
+                    for w in layer.get_weights():
+                        # print(w)
+                        # print(w.name)
+                        # print(w.type.name)
+                        # print(w.data_length)
+                        newlines.append(f"    {w.definition_cpp()};")
+                        lw_size += w.data_length
+                newlines.append("};")
+                newlines.append(f"#define LAYER_WEIGHTS_SIZE {lw_size}")
+                newline = "\n".join(newlines)
 
             elif '// hls-fpga-machine-learning insert namespace-start' in line:
                 newline = ''
