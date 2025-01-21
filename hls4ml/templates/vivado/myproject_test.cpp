@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "firmware/myproject.h"
+#include "firmware/myproject_axi.h"
 #include "firmware/nnet_utils/nnet_helpers.h"
 
 // hls-fpga-machine-learning insert bram
@@ -25,6 +26,8 @@ int main(int argc, char **argv) {
 
     // load input data from text file
     std::ifstream fin("tb_data/tb_input_features.dat");
+    // load weights from text file
+    std::ifstream fwe("tb_data/tb_weights.dat");
     // load predictions from text file
     std::ifstream fpr("tb_data/tb_output_predictions.dat");
 
@@ -36,10 +39,31 @@ int main(int argc, char **argv) {
     std::ofstream fout(RESULTS_LOG);
 
     std::string iline;
+    std::string wline;
     std::string pline;
     int e = 0;
 
-    if (fin.is_open() && fpr.is_open()) {
+    if (fin.is_open() && fpr.is_open() && fwe.is_open()) {
+        model_default_t weights_buffer[LAYER_WEIGHTS_SIZE];
+        layer_weights weights_local;
+        int i = 0;
+        // load weights from file
+        // space and newline are treated identically here (one big array is loaded)
+        while (std::getline(fwe, wline)) {
+            char *cstr = const_cast<char *>(wline.c_str());
+            char *current;
+            current = strtok(cstr, " ");
+            while (current != NULL && i < LAYER_WEIGHTS_SIZE) {
+                weights_buffer[i] = model_default_t(atof(current));
+                current = strtok(NULL, " ");
+                i++;
+            }
+            if (i >= LAYER_WEIGHTS_SIZE) {
+                break;
+            }
+        }
+        std::cout << i << " / " << LAYER_WEIGHTS_SIZE << " weights loaded" << std::endl;
+
         while (std::getline(fin, iline) && std::getline(fpr, pline)) {
             if (e % CHECKPOINT == 0)
                 std::cout << "Processing input " << e << std::endl;
