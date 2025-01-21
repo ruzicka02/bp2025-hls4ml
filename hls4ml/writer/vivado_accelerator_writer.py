@@ -274,7 +274,12 @@ class VivadoAcceleratorWriter(VivadoWriter):
         f.write('variable version\n')
         f.write('set version "{}"\n'.format(model.config.get_config_value('Version', '1.0.0')))
         if self.vivado_accelerator_config.get_interface() == 'axi_stream':
-            in_bit, out_bit = self.vivado_accelerator_config.get_io_bitwidth()
+            config_bw = model.config.config.get("IOBitwidth", None)
+            if config_bw is not None and "Input" in config_bw and "Output" in config_bw:
+                in_bit = model.config.config["IOBitwidth"]["Input"]
+                out_bit = model.config.config["IOBitwidth"]["Output"]
+            else:
+                in_bit, out_bit = self.vivado_accelerator_config.get_io_bitwidth()
             f.write(f'set bit_width_hls_output {in_bit}\n')
             f.write(f'set bit_width_hls_input {out_bit}\n')
         f.close()
