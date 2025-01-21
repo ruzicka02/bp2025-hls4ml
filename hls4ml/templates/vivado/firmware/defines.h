@@ -13,6 +13,8 @@
 
 // hls-fpga-machine-learning insert layer-precision
 
+// hls-fpga-machine-learning insert weights-struct
+
 // hls-fpga-machine-learning insert namespace-end
 
 #endif

@@ -365,6 +365,18 @@ class VivadoWriter(Writer):
                 for used_type in all_precision.values():
                     newline += used_type.definition_cpp()
 
+            elif '// hls-fpga-machine-learning insert weights-struct' in line:
+                newline = line + """
+// TODO: dynamic generation from the model
+struct layer_weights {
+    model_default_t w2[16];
+    model_default_t b2[4];
+    model_default_t w4[12];
+    model_default_t b4[3];
+};
+
+#define LAYER_WEIGHTS_SIZE 35"""
+
             elif '// hls-fpga-machine-learning insert namespace-start' in line:
                 newline = ''
 
