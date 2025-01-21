@@ -25,8 +25,9 @@ void dense_latency(data_T data[CONFIG_T::n_in], res_T res[CONFIG_T::n_out],
     //   - if we have an unroll factor, limit number of multipliers
     #pragma HLS PIPELINE II=CONFIG_T::reuse_factor
 
-    // #pragma HLS ARRAY_PARTITION variable=weights complete // remove this line for now, it breaks compression sometimes
-    #pragma HLS ARRAY_PARTITION variable=biases complete
+    // remove array partitioning for AXI-connected HBM weights
+    // #pragma HLS ARRAY_PARTITION variable=weights complete
+    // #pragma HLS ARRAY_PARTITION variable=biases complete
     #pragma HLS ARRAY_PARTITION variable=mult complete
     #pragma HLS ARRAY_PARTITION variable=acc complete
 
