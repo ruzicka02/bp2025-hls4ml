@@ -138,11 +138,13 @@ class VivadoWriter(Writer):
 
             elif '// hls-fpga-machine-learning insert header' in line:
                 inputs_str = ', '.join([i.definition_cpp(as_reference=True) for i in model_inputs])
+                weights_str = "model_default_t *weight_input"
                 outputs_str = ', '.join([o.definition_cpp(as_reference=True) for o in model_outputs])
                 brams_str = ', \n'.join([indent + b.definition_cpp(as_reference=False) for b in model_brams])
 
                 newline = ''
                 newline += indent + inputs_str + ',\n'
+                newline += indent + weights_str + ',\n'
                 newline += indent + outputs_str
                 if len(model_brams) > 0:
                     newline += ',\n' + brams_str
@@ -163,37 +165,20 @@ class VivadoWriter(Writer):
                     newline += '}\n'
 
             elif '// hls-fpga-machine-learning insert load weights' in line:
-                newline = line
-                if model.config.get_writer_config()['WriteWeightsTxt']:
+                # still a reference to the HBM memory, but casted to correct type
+                newlines = [line.strip("\n"), indent + "layer_weights &weights = *(layer_weights*) weight_input;"]
+                # More elegant solution would be to directly address struct
+                # attributes in the function calls. Unfortunately, some
+                # mysterious get_attr("function_cpp") call is used that is hard
+                # to modify - therefore, we create a bunch of local pointers to
+                # the memory (perhaps compiler might even optimize it)
+                for layer in model.get_layers():
+                    for w in layer.get_weights():
+                        newlines.append(indent + f"{w.type.name} *{w.name} = weights.{w.name};")
 
-                    newline += '#ifndef __SYNTHESIS__\n'
-                    newline += '    static bool loaded_weights = false;\n'
-                    newline += '    if (!loaded_weights) {\n'
-
-                    for layer in model.get_layers():
-                        for w in layer.get_weights():
-                            if w.weight_class == 'CompressedWeightVariable':
-                                newline += (
-                                    indent
-                                    + '    nnet::load_compressed_weights_from_txt<{}, {}>({}, "{}.txt");\n'.format(
-                                        w.type.name, w.nonzeros, w.name, w.name
-                                    )
-                                )
-                            elif w.weight_class == 'ExponentWeightVariable':
-                                newline += (
-                                    indent
-                                    + '    nnet::load_exponent_weights_from_txt<{}, {}>({}, "{}.txt");\n'.format(
-                                        w.type.name, w.data_length, w.name, w.name
-                                    )
-                                )
-                            else:
-                                newline += indent + '    nnet::load_weights_from_txt<{}, {}>({}, "{}.txt");\n'.format(
-                                    w.type.name, w.data_length, w.name, w.name
-                                )
-
-                    newline += '        loaded_weights = true;'
-                    newline += '    }\n'
-                    newline += '#endif'
+                newline = "\n".join(newlines) + "\n"
+                # deep copy for debugging
+                # newline = line + "layer_weights weights = *(layer_weights*) weight_input;\n"
 
             # Add input/output type
             elif '// hls-fpga-machine-learning insert IO' in line:
@@ -243,6 +228,10 @@ class VivadoWriter(Writer):
                                 if var.pragma:
                                     newline += '    ' + self._make_array_pragma(var) + '\n'
                     func = layer.get_attr('function_cpp', None)
+                    # print("DEBUG", layer, type(layer))
+                    # print("DEBUG", layer.__dict__)
+                    # print("DEBUG", [x for x in layer.weights])
+                    # print("DEBUG", func)
                     if func:
                         if not isinstance(func, (list, set)):
                             func = [func]
@@ -296,11 +285,13 @@ class VivadoWriter(Writer):
 
             elif '// hls-fpga-machine-learning insert header' in line:
                 inputs_str = ', '.join([i.definition_cpp(as_reference=True) for i in model_inputs])
+                weights_str = "model_default_t *weight_input"
                 outputs_str = ', '.join([o.definition_cpp(as_reference=True) for o in model_outputs])
                 brams_str = ', \n'.join([indent + b.definition_cpp(as_reference=False) for b in model_brams])
 
                 newline = ''
                 newline += indent + inputs_str + ',\n'
+                newline += indent + weights_str + ',\n'
                 newline += indent + outputs_str
                 if len(model_brams) > 0:
                     newline += ',\n' + brams_str
