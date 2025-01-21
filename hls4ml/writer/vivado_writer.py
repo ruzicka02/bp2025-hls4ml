@@ -76,8 +76,8 @@ class VivadoWriter(Writer):
         Args:
             model (ModelGraph): the hls4ml model.
         """
-        if not os.path.isdir(f"{model.config.get_output_dir()}/firmware/weights"):
-            os.makedirs(f"{model.config.get_output_dir()}/firmware/weights")
+        if not os.path.isdir(f"{model.config.get_output_dir()}/firmware"):
+            os.makedirs(f"{model.config.get_output_dir()}/firmware")
 
     @staticmethod
     def _make_array_pragma(variable):
@@ -850,7 +850,7 @@ class VivadoWriter(Writer):
         self.write_project_dir(model)
         self.write_project_cpp(model)
         self.write_project_header(model)
-        self.write_weights(model)
+        # self.write_weights(model)
         self.write_defines(model)
         self.write_parameters(model)
         self.write_test_bench(model)
