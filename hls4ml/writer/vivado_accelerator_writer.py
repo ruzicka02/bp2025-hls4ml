@@ -82,7 +82,7 @@ class VivadoAcceleratorWriter(VivadoWriter):
                         model.get_output_variables()[0].pragma[1]
                     )
             elif '// hls-fpga-machine-learning insert call' in line:
-                newline = indent + f'{model.config.get_project_name()}(in_local, out_local);\n'
+                newline = indent + f'{model.config.get_project_name()}(in_local, weights, out_local);\n'
             elif '// hls-fpga-machine-learning insert interface' in line:
                 if self.vivado_accelerator_config.get_interface() == 'axi_lite':
                     newline = ''
@@ -102,7 +102,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline = ''
                     newline += indent + '#pragma HLS INTERFACE axis port=in\n'
                     newline += indent + '#pragma HLS INTERFACE axis port=out\n'
-                    newline += indent + '#pragma HLS INTERFACE ap_ctrl_none port=return\n'
+                    newline += indent + '#pragma HLS INTERFACE m_axi port=weights depth=LAYER_WEIGHTS_SIZE\n'
+                    newline += indent + '#pragma HLS INTERFACE s_axilite port=return\n'
                     if model.config.get_config_value("IOType") == 'io_stream':
                         newline += indent + '#pragma HLS DATAFLOW\n'
             elif '// hls-fpga-machine-learning insert enqueue' in line:
