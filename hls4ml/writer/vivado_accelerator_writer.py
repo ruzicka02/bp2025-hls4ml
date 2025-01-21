@@ -202,6 +202,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                 )
             elif '${project_name}.tcl' in line:
                 newline = line.replace('${project_name}.tcl', '${project_name}_axi.tcl')
+            elif "weights" in line:
+                newline = "# removing any weight file imports\n# " + line
             else:
                 newline = line
             fout.write(newline)
