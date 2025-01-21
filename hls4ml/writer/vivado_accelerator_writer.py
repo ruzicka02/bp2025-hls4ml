@@ -18,6 +18,12 @@ class VivadoAcceleratorWriter(VivadoWriter):
         inp_axi_t, out_axi_t, inp, out = self.vivado_accelerator_config.get_corrected_types()
         indent = '    '
 
+        # hotfix, may break something unexpected
+        if str(inp_axi_t) == "fixed<16,6,TRN,WRAP,0>":
+            inp_axi_t = "model_default_t"
+        if str(out_axi_t) == "fixed<16,6,TRN,WRAP,0>":
+            out_axi_t  = "model_default_t"
+
         #######################
         # myproject_axi.h
         #######################
