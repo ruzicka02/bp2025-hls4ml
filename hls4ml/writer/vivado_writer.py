@@ -419,11 +419,7 @@ class VivadoWriter(Writer):
                     newline += '#include "%s"\n' % include
 
             elif '// hls-fpga-machine-learning insert weights' in line:
-                newline = line
-                for layer in model.get_layers():
-                    for w in layer.get_weights():
-                        if w.storage.lower() != 'bram':
-                            newline += f'#include "weights/{w.name}.h"\n'
+                newline = line + "// no weights inserted as they are passed from the client application HBM"
 
             elif "// hls-fpga-machine-learning insert layer-config" in line:
                 newline = line
