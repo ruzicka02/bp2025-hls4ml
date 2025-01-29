@@ -334,13 +334,19 @@ class VivadoWriter(Writer):
                 newline = line
 
                 defines_list = []
+                first = True
                 for layer in model.get_layers():
                     defines = ''
                     for k, v in layer.get_output_variable().get_shape():
+                        if first:
+                            first = False
+                            defines += f'#define N_INPUTS {v}\n'
                         defines += f'#define {k} {v}\n'
 
                     defines_list.append(defines)
 
+                # reuse the last 'v' from the for loop (oh how I hate Python)
+                defines_list.append(f'#define N_OUTPUTS {v}\n')
                 newline += ''.join(defines_list)
 
             elif '// hls-fpga-machine-learning insert layer-precision' in line:
@@ -532,21 +538,38 @@ class VivadoWriter(Writer):
                 newline = line
                 offset = 0
                 for inp in model_inputs:
-                    newline += '      ' + inp.definition_cpp() + ';\n'
-                    newline += '      nnet::copy_data<float, {}, {}, {}>(in, {});\n'.format(
+                    newline += indent + inp.definition_cpp().replace("input_t", "input_axi_t") + ';\n'
+                    newline += indent + '// nnet::copy_data<float, {}, {}, {}>(in, {});\n'.format(
                         inp.type.name, offset, inp.size_cpp(), inp.name
                     )
                     offset += inp.size()
                 for out in model_outputs:
-                    newline += '      ' + out.definition_cpp() + ';\n'
+                    newline += indent + out.definition_cpp().replace("result_t", "output_axi_t") + ';\n'
+
+                newline += f"""            for (int i = 0; i < N_INPUTS; i++) {{
+                input_axi_t in_tmp;
+                in_tmp.data = T_in(in[i]);
+                in_tmp.last = i == in.size() - 1;
+                {inp.name}.write(in_tmp);
+            }}\n"""
 
             elif '// hls-fpga-machine-learning insert zero' in line:
                 newline = line
                 for inp in model_inputs:
-                    newline += '    ' + inp.definition_cpp() + ';\n'
-                    newline += f'    nnet::fill_zero<{inp.type.name}, {inp.size_cpp()}>({inp.name});\n'
+                    newline += indent + inp.definition_cpp().replace("input_t", "input_axi_t") + ';\n'
+                    newline += indent + f'// nnet::fill_zero<{inp.type.name}, {inp.size_cpp()}>({inp.name});\n'
                 for out in model_outputs:
-                    newline += '    ' + out.definition_cpp() + ';\n'
+                    newline += indent + out.definition_cpp().replace("result_t", "output_axi_t") + ';\n'
+
+                newline += f"""\n        for (int i = 0; i < N_INPUTS; i++) {{
+            input_axi_t in_tmp;
+            in_tmp.data = T_in(0.);
+            in_tmp.last = i == N_INPUTS - 1;
+            {inp.name}.write(in_tmp);
+        }}\n\n"""
+
+                newline += indent + "layer_weights weights = {};\n"
+                newline += indent + "T_in *weights_buffer = (T_in*)&weights;\n"
 
             elif '// hls-fpga-machine-learning insert top-level-function' in line:
                 newline = line
@@ -556,11 +579,16 @@ class VivadoWriter(Writer):
                 bram_vars = ','.join([b.name for b in model_brams])
 
                 # Concatenate the input, output, and bram variables. Filter out empty/null values
-                all_vars = ','.join(filter(None, [input_vars, output_vars, bram_vars]))
+                all_vars = ','.join(filter(None, [input_vars, "weights_buffer", output_vars, bram_vars]))
 
-                top_level = indent + f'{model.config.get_project_name()}({all_vars});\n'
+                top_level = indent + f'{model.config.get_project_name()}_axi({all_vars});\n'
 
                 newline += top_level
+
+                newline += f"""            std::vector<T_out> output(N_OUTPUTS);
+            for (int i = 0; i < N_OUTPUTS; i++) {{
+                output[i] = {model_outputs[0].name}.read().data;
+            }}\n"""
 
             elif '// hls-fpga-machine-learning insert predictions' in line:
                 newline = line
@@ -573,9 +601,13 @@ class VivadoWriter(Writer):
             elif '// hls-fpga-machine-learning insert tb-output' in line:
                 newline = line
                 for out in model_outputs:
-                    newline += indent + 'nnet::print_result<{}, {}>({}, fout);\n'.format(
-                        out.type.name, out.size_cpp(), out.name
-                    )  # TODO enable this
+                    # newline += indent + 'nnet::print_result<{}, {}>({}, fout);\n'.format(
+                    #     out.type.name, out.size_cpp(), out.name
+                    # )
+                    newline += indent + f'for(T_out x : output) {{\n'
+                    newline += indent + '    fout << x << " ";\n'
+                    newline += indent + '}\n'
+                    newline += indent + 'fout << std::endl;\n'
 
             elif (
                 '// hls-fpga-machine-learning insert output' in line
@@ -583,9 +615,14 @@ class VivadoWriter(Writer):
             ):
                 newline = line
                 for out in model_outputs:
-                    newline += indent + 'nnet::print_result<{}, {}>({}, std::cout, true);\n'.format(
-                        out.type.name, out.size_cpp(), out.name
-                    )
+                    # newline += indent + 'nnet::print_result<{}, {}>({}, std::cout, true);\n'.format(
+                    #     out.type.name, out.size_cpp(), out.name
+                    # )
+                    newline += indent + f'for(T_out x : output) {{\n'
+                    newline += indent + '    std::cout << x << " ";\n'
+                    newline += indent + '}\n'
+                    newline += indent + 'std::cout << std::endl;\n'
+
 
             elif '// hls-fpga-machine-learning insert namespace' in line:
                 newline = ''
@@ -652,7 +689,7 @@ class VivadoWriter(Writer):
                 newline += f"""    model_default_t weights_buffer[LAYER_WEIGHTS_SIZE];
     layer_weights weights_local;
     nnet::convert_data<{dtype}, model_default_t, LAYER_WEIGHTS_SIZE>(weights, weights_buffer);
-    weights_local = *(layer_weights*) &weights_buffer;"""
+    weights_local = *(layer_weights*) &weights_buffer;\n"""
 
 
                 for o in model_outputs:
