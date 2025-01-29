@@ -636,6 +636,7 @@ class VivadoWriter(Writer):
 
                 newline = ''
                 newline += indent + inputs_str + ',\n'
+                newline += indent + f"{dtype} weights [LAYER_WEIGHTS_SIZE],\n"
                 newline += indent + outputs_str + '\n'
 
             elif '// hls-fpga-machine-learning insert wrapper' in line:
@@ -648,6 +649,12 @@ class VivadoWriter(Writer):
                     )
                 newline += '\n'
 
+                newline += f"""    model_default_t weights_buffer[LAYER_WEIGHTS_SIZE];
+    layer_weights weights_local;
+    nnet::convert_data<{dtype}, model_default_t, LAYER_WEIGHTS_SIZE>(weights, weights_buffer);
+    weights_local = *(layer_weights*) &weights_buffer;"""
+
+
                 for o in model_outputs:
                     newline += indent + '{var};\n'.format(var=o.definition_cpp(name_suffix='_ap'))
 
@@ -658,7 +665,7 @@ class VivadoWriter(Writer):
                 output_vars = ','.join([o.name + '_ap' for o in model_outputs])
 
                 # Concatenate the input, output, and bram variables. Filter out empty/null values
-                all_vars = ','.join(filter(None, [input_vars, output_vars, bram_vars]))
+                all_vars = ','.join(filter(None, [input_vars, "weights_local", output_vars, bram_vars]))
 
                 top_level = indent + f'{model.config.get_project_name()}({all_vars});\n'
                 newline += top_level
