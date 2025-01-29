@@ -1,6 +1,6 @@
 // hls-fpga-machine-learning insert include
 
-void iris_hls4ml_prj_axi(
+void myproject_axi(
     hls::stream<input_axi_t>  &in,
     T_in                      *weights,
     hls::stream<output_axi_t> &out
