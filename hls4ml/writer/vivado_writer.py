@@ -459,6 +459,7 @@ class VivadoWriter(Writer):
         """
         # whatever was written in previous run(s)
         weight_file = f'{model.config.get_output_dir()}/tb_data/tb_weights.dat'
+        os.makedirs(os.path.dirname(weight_file), exist_ok=True)
         if os.path.exists(weight_file):
             os.remove(weight_file)
 
