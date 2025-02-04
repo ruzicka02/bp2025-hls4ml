@@ -15,7 +15,7 @@ config_filename = 'hls4ml_config.yml'
 
 
 class VivadoWriter(Writer):
-    def print_array_to_cpp(self, var, odir, namespace=None, write_txt_file=True):
+    def print_array_to_cpp(self, var, odir, namespace=None, write_txt_file=True, write_h_file=True):
         """Write a weights array to C++ header files.
 
         Args:
@@ -25,50 +25,53 @@ class VivadoWriter(Writer):
             write_txt_file (bool, optional): Write txt files in addition to .h files. Defaults to True.
         """
 
-        h_file = open(f'{odir}/firmware/weights/{var.name}.h', 'w')
         if write_txt_file:
-            txt_file = open(f'{odir}/firmware/weights/{var.name}.txt', 'w')
+            # with open(f'{odir}/firmware/weights/{var.name}.txt', 'w') as txt_file:
+            with open(f'{odir}/tb_data/tb_weights.dat', 'a') as txt_file:
+                sep = ''
+                for x in var:
+                    txt_file.write(sep + x)
+                    sep = ', '
+                txt_file.write("\n")
 
-        # meta data
-        h_file.write(f'//Numpy array shape {var.shape}\n')
-        h_file.write(f'//Min {np.min(var.min):.12f}\n')
-        h_file.write(f'//Max {np.max(var.max):.12f}\n')
-        h_file.write(f'//Number of zeros {var.nzeros}\n')
-        h_file.write('\n')
+        if write_h_file:
+            with open(f'{odir}/firmware/weights/{var.name}.h', 'w') as h_file:
+                # meta data
+                h_file.write(f'//Numpy array shape {var.shape}\n')
+                h_file.write(f'//Min {np.min(var.min):.12f}\n')
+                h_file.write(f'//Max {np.max(var.max):.12f}\n')
+                h_file.write(f'//Number of zeros {var.nzeros}\n')
+                h_file.write('\n')
 
-        h_file.write(f'#ifndef {var.name.upper()}_H_\n')
-        h_file.write(f'#define {var.name.upper()}_H_\n')
-        h_file.write('\n')
+                h_file.write(f'#ifndef {var.name.upper()}_H_\n')
+                h_file.write(f'#define {var.name.upper()}_H_\n')
+                h_file.write('\n')
 
-        if namespace is not None:
-            h_file.write(f'namespace {namespace} {{\n\n')
+                if namespace is not None:
+                    h_file.write(f'namespace {namespace} {{\n\n')
 
-        if write_txt_file:
-            h_file.write('#ifndef __SYNTHESIS__\n')
-            h_file.write(var.definition_cpp() + ';\n')
-            h_file.write('#else\n')
+                if write_txt_file:
+                    h_file.write('#ifndef __SYNTHESIS__\n')
+                    h_file.write(var.definition_cpp() + ';\n')
+                    h_file.write('#else\n')
 
-        h_file.write(var.definition_cpp() + ' = {')
+                h_file.write(var.definition_cpp() + ' = {')
 
-        # fill c++ array.
-        # not including internal brackets for multidimensional case
-        sep = ''
-        for x in var:
-            h_file.write(sep + x)
-            if write_txt_file:
-                txt_file.write(sep + x)
-            sep = ', '
-        h_file.write('};\n\n')
+                # fill c++ array.
+                # not including internal brackets for multidimensional case
+                sep = ''
+                for x in var:
+                    h_file.write(sep + x)
+                    sep = ', '
+                h_file.write('};\n\n')
 
-        if write_txt_file:
-            h_file.write('#endif\n')
-            txt_file.close()
+                if write_txt_file:
+                    h_file.write('#endif\n')
 
-        if namespace is not None:
-            h_file.write('}\n\n')
+                if namespace is not None:
+                    h_file.write('}\n\n')
 
-        h_file.write('\n#endif\n')
-        h_file.close()
+                h_file.write('\n#endif\n')
 
     def write_project_dir(self, model):
         """Write the base project directory
@@ -454,12 +457,17 @@ class VivadoWriter(Writer):
         Args:
             model (ModelGraph): the hls4ml model.
         """
+        # whatever was written in previous run(s)
+        weight_file = f'{model.config.get_output_dir()}/tb_data/tb_weights.dat'
+        if os.path.exists(weight_file):
+            os.remove(weight_file)
+
         namespace = model.config.get_writer_config().get('Namespace', None)
         write_txt = model.config.get_writer_config().get('WriteWeightsTxt', True)
         for layer in model.get_layers():
             for weights in layer.get_weights():
                 self.print_array_to_cpp(
-                    weights, model.config.get_output_dir(), namespace=namespace, write_txt_file=write_txt
+                    weights, model.config.get_output_dir(), namespace=namespace, write_txt_file=write_txt, write_h_file=False
                 )
 
     def __make_dat_file(self, original_path, project_path):
@@ -896,7 +904,7 @@ class VivadoWriter(Writer):
         self.write_project_dir(model)
         self.write_project_cpp(model)
         self.write_project_header(model)
-        # self.write_weights(model)
+        self.write_weights(model)
         self.write_defines(model)
         self.write_parameters(model)
         self.write_test_bench(model)
