@@ -160,6 +160,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                         newline += indent + indent + 'output_axi_t out_tmp;\n'
                         newline += indent + indent + 'out_tmp.data = out_local[i]; // Write output with cast\n'
                         newline += indent + indent + 'out_tmp.last = (is_last && (i == N_OUT - 1))? true : false;\n'
+                        newline += indent + indent + 'out_tmp.keep = ~0;\n'
+                        newline += indent + indent + 'out_tmp.strb = ~0;\n'
                         newline += indent + indent + 'out.write(out_tmp);\n'
                     else:
                         newline += indent + indent + '#pragma HLS UNROLL\n'
@@ -176,6 +178,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                         newline += indent + indent + indent + 'output_axi_t out_tmp;\n'
                         newline += indent + indent + indent + 'out_tmp.data = ctype[j];\n'
                         newline += indent + indent + indent + 'out_tmp.last = (is_last && (i * result_t::size + j == N_OUT - 1)) ? true : false;\n'
+                        newline += indent + indent + indent + 'out_tmp.keep = ~0;\n'
+                        newline += indent + indent + indent + 'out_tmp.strb = ~0;\n'
                         newline += indent + indent + indent + 'out.write(out_tmp);\n'
                     else:
                         newline += indent + indent + indent + 'out[i * {result_t}::size + j] = output_axi_t(ctype[j]);\n'
