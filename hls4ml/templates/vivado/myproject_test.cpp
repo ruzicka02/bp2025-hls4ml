@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
     int e = 0;
 
     if (fin.is_open() && fpr.is_open() && fwe.is_open()) {
-        model_default_t weights_buffer[LAYER_WEIGHTS_SIZE];
+        model_default_t weights_buffer[LAYER_WEIGHTS_SIZE + 2] = {};
         int i = 0;
         // load weights from file
         // space and newline are treated identically here (one big array is loaded)

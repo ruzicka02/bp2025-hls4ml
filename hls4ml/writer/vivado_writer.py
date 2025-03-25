@@ -573,9 +573,12 @@ class VivadoWriter(Writer):
                 for out in model_outputs:
                     newline += indent + out.definition_cpp().replace("result_t", "output_axi_t") + ';\n'
 
-                newline += f"""            for (int i = 0; i < N_INPUTS; i++) {{
+                newline += f"""            for (int i = 0; i < N_INPUTS; i += 2) {{
                 input_axi_t in_tmp;
-                in_tmp.data = T_in(in[i]);
+                in_tmp.data = T_in(in[i]).range();
+                if (i + 1 < N_INPUTS) {{
+                    in_tmp.data += T_axi_in(T_in(in[i + 1]).range()) << 16;
+                }}
                 in_tmp.last = i == in.size() - 1;
                 {inp.name}.write(in_tmp);
             }}\n"""
@@ -595,8 +598,7 @@ class VivadoWriter(Writer):
             {inp.name}.write(in_tmp);
         }}\n\n"""
 
-                newline += indent + "layer_weights weights = {};\n"
-                newline += indent + "T_in *weights_buffer = (T_in*)&weights;\n"
+                newline += indent + "model_default_t weights_buffer[LAYER_WEIGHTS_SIZE + 2] = {};\n"
 
             elif '// hls-fpga-machine-learning insert top-level-function' in line:
                 newline = line
@@ -613,8 +615,12 @@ class VivadoWriter(Writer):
                 newline += top_level
 
                 newline += f"""            std::vector<T_out> output(N_OUTPUTS);
-            for (int i = 0; i < N_OUTPUTS; i++) {{
-                output[i] = {model_outputs[0].name}.read().data;
+            for (int i = 0; i < N_OUTPUTS; i += 2) {{
+                T_axi_out out_data = {model_outputs[0].name}.read().data;
+                output[i].range() = out_data & 0xFFFF;
+                if (i + 1 < N_OUTPUTS) {{
+                    output[i + 1].range() = (out_data & 0xFFFF0000) >> 16;
+                }}
             }}\n"""
 
             elif '// hls-fpga-machine-learning insert predictions' in line:
