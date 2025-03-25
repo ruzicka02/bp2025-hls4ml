@@ -15,7 +15,7 @@ config_filename = 'hls4ml_config.yml'
 
 
 class VivadoWriter(Writer):
-    def print_array_to_cpp(self, var, odir, namespace=None, write_txt_file=True, write_h_file=True):
+    def print_array_to_cpp(self, var, odir, namespace=None, write_txt_file=True, write_h_file=True, commas=True):
         """Write a weights array to C++ header files.
 
         Args:
@@ -23,6 +23,7 @@ class VivadoWriter(Writer):
             odir (str): Output directory
             namespace (str, optional): Writes a namespace for the weights to avoid clashes with global variables.
             write_txt_file (bool, optional): Write txt files in addition to .h files. Defaults to True.
+            commas (bool, optional): Add commas between elements. Defaults to True.
         """
 
         if write_txt_file:
@@ -31,7 +32,7 @@ class VivadoWriter(Writer):
                 sep = ''
                 for x in var:
                     txt_file.write(sep + x)
-                    sep = ', '
+                    sep = ', ' if commas else ' '
                 txt_file.write("\n")
 
         if write_h_file:
@@ -463,13 +464,28 @@ class VivadoWriter(Writer):
         if os.path.exists(weight_file):
             os.remove(weight_file)
 
-        namespace = model.config.get_writer_config().get('Namespace', None)
-        write_txt = model.config.get_writer_config().get('WriteWeightsTxt', True)
+        namespace = model.config.get_writer_config().get("Namespace", None)
+        write_txt = model.config.get_writer_config().get("WriteWeightsTxt", True)
         for layer in model.get_layers():
             for weights in layer.get_weights():
                 self.print_array_to_cpp(
-                    weights, model.config.get_output_dir(), namespace=namespace, write_txt_file=write_txt, write_h_file=False
+                    weights,
+                    model.config.get_output_dir(),
+                    namespace=namespace,
+                    write_txt_file=write_txt,
+                    write_h_file=False,
+                    commas=False,
                 )
+
+        # add two zeros at the end of the file... feedback from the client application
+        self.print_array_to_cpp(
+            ["0.0", "0.0"],
+            model.config.get_output_dir(),
+            namespace=namespace,
+            write_txt_file=write_txt,
+            write_h_file=False,
+            commas=False,
+        )
 
     def __make_dat_file(self, original_path, project_path):
         """
