@@ -43,11 +43,16 @@ class VivadoAcceleratorWriter(VivadoWriter):
                 newline = ''
                 newline += f'static const unsigned N_IN = {inp.size()};\n'
                 newline += f'static const unsigned N_OUT = {out.size()};\n'
+                newline += 'static const unsigned AXI_IN = (N_IN / 2) + (N_IN % 2);\n'
+                newline += 'static const unsigned AXI_OUT = (N_OUT / 2) + (N_OUT % 2);\n'
+
                 if self.vivado_accelerator_config.get_interface() == 'axi_stream':
                     newline += f'typedef {inp_axi_t} T_in;\n'
                     newline += f'typedef {out_axi_t} T_out;\n'
-                    newline += 'typedef hls::axis<T_in, 0, 0, 0> input_axi_t;\n'
-                    newline += 'typedef hls::axis<T_out, 0, 0, 0> output_axi_t;\n'
+                    newline += 'typedef ap_uint<32> T_axi_in;\n'
+                    newline += 'typedef ap_uint<32> T_axi_out;\n'
+                    newline += 'typedef hls::axis<T_axi_in, 0, 0, 0> input_axi_t;\n'
+                    newline += 'typedef hls::axis<T_axi_out, 0, 0, 0> output_axi_t;\n'
                 else:
                     newline += f'typedef {inp_axi_t} input_axi_t;\n'
                     newline += f'typedef {out_axi_t} output_axi_t;\n'
@@ -75,6 +80,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                 newline = ''
                 if self.vivado_accelerator_config.get_interface() == 'axi_stream':
                     newline += indent + 'bool is_last = false;\n'
+                    newline += indent + 'static uint16_t counter = 0;\n'
+                    newline += indent + 'uint16_t* weights_raw = (uint16_t*)weights;\n'
                 if io_type == 'io_parallel':
                     newline += indent + inp.type.name + ' in_local[N_IN];\n'
                     newline += indent + out.type.name + ' out_local[N_OUT];\n'
@@ -108,8 +115,8 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline = ''
                     newline += indent + '#pragma HLS INTERFACE axis port=in\n'
                     newline += indent + '#pragma HLS INTERFACE axis port=out\n'
-                    newline += indent + '#pragma HLS INTERFACE m_axi port=weights depth=LAYER_WEIGHTS_SIZE\n'
-                    newline += indent + '#pragma HLS INTERFACE s_axilite port=return\n'
+                    newline += indent + '#pragma HLS INTERFACE m_axi port=weights depth=LAYER_WEIGHTS_SIZE+2\n'
+                    newline += indent + '#pragma HLS INTERFACE ap_ctrl_none port=return\n'
                     if model.config.get_config_value("IOType") == 'io_stream':
                         newline += indent + '#pragma HLS DATAFLOW\n'
             elif '// hls-fpga-machine-learning insert enqueue' in line:
@@ -131,18 +138,23 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline += indent + 'for(unsigned i = 0; i < N_IN / {input_t}::size; ++i) {{\n'
                     # newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{input_t} ctype;\n'
-                    newline += indent + indent + 'for(unsigned j = 0; j < {input_t}::size; j++) {{\n'
+                    newline += indent + indent + 'for(unsigned j = 0; j < {input_t}::size; j += 2) {{\n'
                     # newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     if self.vivado_accelerator_config.get_interface() == 'axi_stream':
-                        newline += indent + indent + indent + 'input_axi_t in_tmp = in.read();\n'
-                        newline += indent + indent + indent + 'ctype[j] = typename input_t::value_type(in_tmp.data);\n'
-                        newline += indent + indent + indent + 'is_last |= (in_tmp.last == 1)? true : false;\n'
+                        newline += 3 * indent + 'input_axi_t in_tmp = in.read();\n'
+                        newline += 3 * indent + 'is_last |= in_tmp.last == 1;\n\n'
+                        newline += 3 * indent + 'T_axi_in in_data = in_tmp.data;\n'
+                        newline += 3 * indent + 'ctype[j].range() = in_data & 0xFFFF;\n'
+                        newline += 3 * indent + 'if (j + 1 < input_t::size) {{\n'
+                        newline += 4 * indent + 'ctype[j + 1].range() = (in_data & 0xFFFF0000) >> 16;\n'
+                        newline += 3 * indent + '}}\n'
+                        newline += 3 * indent + 'counter += 1;\n'
+                        newline += 3 * indent + 'weights_raw[LAYER_WEIGHTS_SIZE] = counter;\n'
+                        newline += 3 * indent + 'weights_raw[LAYER_WEIGHTS_SIZE + 1] = is_last ? 1 : 0;\n'
                     else:
                         newline += (
-                            indent
-                            + indent
-                            + indent
-                            + 'ctype[j] = typename {input_t}::value_type(in[i * {input_t}::size + j]);\n'
+                            3 * indent
+                            + "ctype[j] = typename {input_t}::value_type(in[i * {input_t}::size + j]);\n"
                         )
                     newline += indent + indent + '}}\n'
                     newline += indent + indent + 'in_local.write(ctype);\n'
@@ -172,15 +184,19 @@ class VivadoAcceleratorWriter(VivadoWriter):
                     newline += indent + 'for(unsigned i = 0; i < N_OUT / {result_t}::size; ++i) {{\n'
                     # newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{result_t} ctype = out_local.read();\n'
-                    newline += indent + indent + 'for(unsigned j = 0; j < {result_t}::size; j++) {{\n'
+                    newline += indent + indent + 'for(unsigned j = 0; j < {result_t}::size; j += 2) {{\n'
                     # newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     if self.vivado_accelerator_config.get_interface() == 'axi_stream':
-                        newline += indent + indent + indent + 'output_axi_t out_tmp;\n'
-                        newline += indent + indent + indent + 'out_tmp.data = ctype[j];\n'
-                        newline += indent + indent + indent + 'out_tmp.last = (is_last && (i * result_t::size + j == N_OUT - 1)) ? true : false;\n'
-                        newline += indent + indent + indent + 'out_tmp.keep = ~0;\n'
-                        newline += indent + indent + indent + 'out_tmp.strb = ~0;\n'
-                        newline += indent + indent + indent + 'out.write(out_tmp);\n'
+                        newline += 3 * indent + 'T_axi_out out_data = ctype[j].range();\n'
+                        newline += 3 * indent + 'if (j + 1 < {result_t}::size) {{\n'
+                        newline += 4 * indent + 'out_data += T_axi_out(ctype[j + 1].range()) << 16;\n'
+                        newline += 3 * indent + '}}\n'
+                        newline += 3 * indent + 'output_axi_t out_tmp;\n'
+                        newline += 3 * indent + 'out_tmp.data = out_data;\n'
+                        newline += 3 * indent + 'out_tmp.last = is_last && (i * result_t::size + j == N_OUT - 1);\n'
+                        newline += 3 * indent + 'out_tmp.keep = ~0;\n'
+                        newline += 3 * indent + 'out_tmp.strb = ~0;\n'
+                        newline += 3 * indent + 'out.write(out_tmp);\n'
                     else:
                         newline += indent + indent + indent + 'out[i * {result_t}::size + j] = output_axi_t(ctype[j]);\n'
                     newline += indent + indent + '}}\n'
