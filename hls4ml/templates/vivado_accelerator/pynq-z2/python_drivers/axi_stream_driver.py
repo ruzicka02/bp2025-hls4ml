@@ -115,9 +115,9 @@ class NeuralNetworkOverlay(Overlay):
         weights_addr = self.weights_buffer.device_address
 
         # lo
-        self.hier_0.pynq_z2_prj_axi_0.register_map.weights_1 = weights_addr % 2**32
+        self.hier_0.myproject_axi_0.register_map.weights_1 = weights_addr % 2**32
         # hi
-        self.hier_0.pynq_z2_prj_axi_0.register_map.weights_2 = weights_addr // 2**32
+        self.hier_0.myproject_axi_0.register_map.weights_2 = weights_addr // 2**32
 
     def _print_dt(self, timea, timeb, N):
         dt = timeb - timea

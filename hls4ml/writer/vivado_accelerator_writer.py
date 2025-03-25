@@ -317,6 +317,9 @@ class VivadoAcceleratorWriter(VivadoWriter):
             os.path.join(filedir, self.vivado_accelerator_config.get_driver_path()),
             ('{}/' + self.vivado_accelerator_config.get_driver_file()).format(model.config.get_output_dir()),
         )
+        os.system(
+            f"sed -i 's/myproject/{model.config.get_project_name()}/g' {model.config.get_output_dir()}/{self.vivado_accelerator_config.get_driver_file()}"
+        )
 
     def write_new_tar(self, model):
         tarfile = model.config.get_output_dir() + '.tar.gz'
