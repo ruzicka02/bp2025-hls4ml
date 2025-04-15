@@ -339,14 +339,17 @@ class VivadoWriter(Writer):
             if '// hls-fpga-machine-learning insert numbers' in line:
                 newline = line
 
-                defines_list = []
-                first = True
+                input_count = 1
+                for layer in model.get_layers():
+                    for k, v in layer.get_output_variable().get_shape():
+                        if "N_INPUT" in k:
+                            input_count *= v
+
+                defines_list = [f'#define N_INPUTS {input_count}\n']
+
                 for layer in model.get_layers():
                     defines = ''
                     for k, v in layer.get_output_variable().get_shape():
-                        if first:
-                            first = False
-                            defines += f'#define N_INPUTS {v}\n'
                         defines += f'#define {k} {v}\n'
 
                     defines_list.append(defines)
