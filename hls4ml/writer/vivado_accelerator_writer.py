@@ -2,10 +2,10 @@ import os
 from distutils.dir_util import copy_tree
 from shutil import copyfile
 
-from hls4ml.writer.vivado_writer import VivadoWriter
+from hls4ml.writer.vitis_writer import VitisWriter
 
 
-class VivadoAcceleratorWriter(VivadoWriter):
+class VivadoAcceleratorWriter(VitisWriter):
     def __init__(self):
         super().__init__()
         self.vivado_accelerator_config = None
