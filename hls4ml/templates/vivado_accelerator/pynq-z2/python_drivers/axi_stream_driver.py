@@ -165,17 +165,24 @@ class NeuralNetworkOverlay(Overlay):
         assert X.dtype == np.uint32, f"Unsupported dtype {X.dtype}"
 
         self.input_buffer[:] = X
-        self.sendchannel.transfer(self.input_buffer)
         self.recvchannel.transfer(self.output_buffer)
+
+        # time
+
+        self.sendchannel.transfer(self.input_buffer)
         if debug:
             print("Transfer OK")
-        self.sendchannel.wait()
-        if debug:
-            print("Send OK")
 
         self.recvchannel.wait()
         if debug:
             print("Receive OK.")
+
+        # time
+
+        self.sendchannel.wait()
+        if debug:
+            print("Send OK")
+
         result = unbundle_from_transfer(self.output_buffer)
         if self.odd_output:
             result = result[..., :-1]
