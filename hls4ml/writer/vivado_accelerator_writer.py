@@ -193,7 +193,7 @@ class VivadoAcceleratorWriter(VitisWriter):
                         newline += 3 * indent + '}}\n'
                         newline += 3 * indent + 'output_axi_t out_tmp;\n'
                         newline += 3 * indent + 'out_tmp.data = out_data;\n'
-                        newline += 3 * indent + 'out_tmp.last = is_last && (i * result_t::size + j == N_OUT - 1);\n'
+                        newline += 3 * indent + 'out_tmp.last = is_last && (i * result_t::size + j >= N_OUT - 2);\n'
                         newline += 3 * indent + 'out_tmp.keep = ~0;\n'
                         newline += 3 * indent + 'out_tmp.strb = ~0;\n'
                         newline += 3 * indent + 'out.write(out_tmp);\n'
